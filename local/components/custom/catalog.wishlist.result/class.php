@@ -7,16 +7,8 @@ class WishlistResultComponent extends CBitrixComponent
     public function executeComponent()
     {
         CModule::IncludeModule("sale");
-//        global $APPLICATION;
-        global $USER;
 
-        if(!$USER->IsAuthorized()){
-            foreach ($_SESSION[$this->arParams["NAME"]][$this->arParams["IBLOCK_ID"]]["ITEMS"] as $item){
-                $this->arResult['ITEMS']['ID'][] = $item['ID'];
-            }
-        } else {
-            $this->arResult['ITEMS']['ID'] = $this->getDelayProductsIds();
-        }
+        $this->arResult['ITEMS']['ID'] = $this->getDelayProductsIds();
 
         $this->IncludeComponentTemplate();
     }

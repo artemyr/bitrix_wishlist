@@ -28,6 +28,22 @@
 
 
 компонент result на страницу с избранным
+```
+<?$APPLICATION->IncludeComponent(
+    "custom:catalog.wishlist.result",
+    "",
+    Array(
+        "NAME" => "CATALOG_WISHLIST_LIST",
+        "IBLOCK_ID" => CATALOG_IB_ID,
+
+        "USE_WISHLIST" => 'Y',
+        "WISHLIST_PATH" => "/catalog/wishlist.php?action=#ACTION_CODE#",
+        'WISHLIST_NAME' => 'CATALOG_WISHLIST_LIST',
+    )
+);?>
+```
+
+
 компонент wishlist в header для вывода цифири и ловли аяксов
 ```
 <?$APPLICATION->IncludeComponent(
@@ -269,62 +285,42 @@ component_epilog.php
 ```
 if ($arParams['DISPLAY_WISHLIST'])
 {
-$wishlist = false;
-$wishlistIds = array();
-$item = $templateData['ITEM'];
+    $wishlist = false;
+    $wishlistIds = array();
+    $item = $templateData['ITEM'];
 
-    global $USER;
-    if (!$USER->IsAuthorized()) {
-        if (!empty($_SESSION[$arParams['WISHLIST_NAME']][$item['IBLOCK_ID']]['ITEMS'])) {
-            if (!empty($item['JS_OFFERS'])) {
-                foreach ($item['JS_OFFERS'] as $key => $offer) {
-                    if (array_key_exists($offer['ID'], $_SESSION[$arParams['WISHLIST_NAME']][$item['IBLOCK_ID']]['ITEMS'])) {
-                        if ($key == $item['OFFERS_SELECTED']) {
-                            $wishlist = true;
-                        }
+    $arBasketItems = array();
 
-                        $wishlistIds[] = $offer['ID'];
-                    }
-                }
-            } elseif (array_key_exists($item['ID'], $_SESSION[$arParams['WISHLIST_NAME']][$item['IBLOCK_ID']]['ITEMS'])) {
-                $wishlist = true;
-            }
+    $dbBasketItems = CSaleBasket::GetList(
+        array(
+            "NAME" => "ASC",
+            "ID" => "ASC"
+        ),
+        array(
+            "FUSER_ID" => CSaleBasket::GetBasketUserID(),
+            "LID" => SITE_ID,
+            "ORDER_ID" => "NULL",
+            'DELAY' => 'Y'
+        ),
+        false,
+        false,
+        array("ID", "CALLBACK_FUNC", "MODULE",
+            "PRODUCT_ID", "QUANTITY", "DELAY",
+            "CAN_BUY", "PRICE", "WEIGHT")
+    );
+    while ($arItems = $dbBasketItems->Fetch()) {
+        if (strlen($arItems["CALLBACK_FUNC"]) > 0) {
+            CSaleBasket::UpdatePrice($arItems["ID"],
+                $arItems["CALLBACK_FUNC"],
+                $arItems["MODULE"],
+                $arItems["PRODUCT_ID"],
+                $arItems["QUANTITY"]);
+            $arItems = CSaleBasket::GetByID($arItems["ID"]);
         }
-    } else {
 
-        $arBasketItems = array();
-
-        $dbBasketItems = CSaleBasket::GetList(
-            array(
-                "NAME" => "ASC",
-                "ID" => "ASC"
-            ),
-            array(
-                "FUSER_ID" => CSaleBasket::GetBasketUserID(),
-                "LID" => SITE_ID,
-                "ORDER_ID" => "NULL",
-                'DELAY' => 'Y'
-            ),
-            false,
-            false,
-            array("ID", "CALLBACK_FUNC", "MODULE",
-                "PRODUCT_ID", "QUANTITY", "DELAY",
-                "CAN_BUY", "PRICE", "WEIGHT")
-        );
-        while ($arItems = $dbBasketItems->Fetch()) {
-            if (strlen($arItems["CALLBACK_FUNC"]) > 0) {
-                CSaleBasket::UpdatePrice($arItems["ID"],
-                    $arItems["CALLBACK_FUNC"],
-                    $arItems["MODULE"],
-                    $arItems["PRODUCT_ID"],
-                    $arItems["QUANTITY"]);
-                $arItems = CSaleBasket::GetByID($arItems["ID"]);
-            }
-
-            if($item['ID'] == $arItems['PRODUCT_ID']){
-                $wishlist = true;
-                break;
-            }
+        if($item['ID'] == $arItems['PRODUCT_ID']){
+            $wishlist = true;
+            break;
         }
     }
 

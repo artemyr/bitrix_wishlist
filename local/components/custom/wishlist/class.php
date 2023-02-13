@@ -11,23 +11,10 @@ class WishlistComponent extends CBitrixComponent
         global $APPLICATION;
         CModule::IncludeModule("sale");
 
+        $arBasketItems = $this->authFavs();
 
-        if (!$USER->IsAuthorized()){
-            $arBasketItems = $this->nonAuthFavs();
-
-            $this->arResult['ITEMS'] = $arBasketItems;
-            $this->arResult['COUNT'] = count($arBasketItems);
-        } else {
-
-//            $APPLICATION->RestartBuffer();
-//            dump($this->getDelayProducts());
-//            die;
-
-            $arBasketItems = $this->authFavs();
-
-            $this->arResult['ITEMS'] = $arBasketItems;
-            $this->arResult['COUNT'] = count($arBasketItems);
-        }
+        $this->arResult['ITEMS'] = $arBasketItems;
+        $this->arResult['COUNT'] = count($arBasketItems);
 
         $this->IncludeComponentTemplate();
     }
