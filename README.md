@@ -26,7 +26,7 @@
 
 
 
-
+/-----
 компонент result на страницу с избранным
 ```
 <?$APPLICATION->IncludeComponent(
@@ -44,6 +44,8 @@
 ```
 
 
+
+/-----
 компонент wishlist в header для вывода цифири и ловли аяксов
 ```
 <?$APPLICATION->IncludeComponent(
@@ -70,6 +72,9 @@
 );?>
 ```
 
+
+
+
 /-----
 компонент каталог catalog catalog/index.php
 параметры
@@ -78,6 +83,11 @@
 "USE_WISHLIST" => "Y",
 "WISHLIST_NAME" => "CATALOG_WISHLIST_LIST"
 ```
+
+
+
+
+
 /-----
 компонент списка товаров catalog.section в том числе в catalog - section - section_vertical
 параметры
@@ -100,7 +110,11 @@ $generalParams = array(
     '~WISHLIST_URL_TEMPLATE' => $add,
     '~WISHLIST_DELETE_URL_TEMPLATE' => $remove,
 ```
-/----
+
+
+
+
+/-----
 компонент карточки товара catalog.item
 template.php в переменной $itemIds
 ```
@@ -338,4 +352,256 @@ if ($arParams['DISPLAY_WISHLIST'])
         <?
     }
 }
+```
+
+
+
+
+/-----
+компонент детальной карточки товара catalog.element в том числе в catalog - element
+параметры $componentElementParams
+```
+"DISPLAY_WISHLIST" => $arParams["USE_WISHLIST"],
+'WISHLIST_PATH' => $arResult['FOLDER'] . $arResult['URL_TEMPLATES']['wishlist'],
+'WISHLIST_NAME' => $arParams['WISHLIST_NAME'],
+```
+template.php
+$itemIds
+```
+'WISHLIST_LINK' => $mainId . '_wishlist_link',
+```
+ссылка на добовление
+```
+<a href="javascript:void(0);" class="" id="<?= $itemIds['WISHLIST_LINK'] ?>">
+    <span class="">В избранное</span>
+    <input style="display:none" type="checkbox" data-entity="wishlist-checkbox">
+</a>
+```
+if ($haveOffers) { ... $jsParams['CONFIG']
+```
+'DISPLAY_WISHLIST' => $arParams['DISPLAY_WISHLIST'],
+```
+else ... $jsParams['CONFIG']
+```
+'DISPLAY_WISHLIST' => $arParams['DISPLAY_WISHLIST'],
+```
+if ($arParams['DISPLAY_COMPARE']) {...}
+```
+$add = str_replace("COMPARE","WISHLIST", $arResult['~COMPARE_URL_TEMPLATE']);
+$add = str_replace("action","action_wish", $add);
+
+$remove = str_replace("COMPARE","WISHLIST", $arResult['~COMPARE_DELETE_URL_TEMPLATE']);
+$remove = str_replace("action","action_wish", $remove);
+
+if ($arParams['DISPLAY_WISHLIST']) {
+    $jsParams['WISHLIST'] = array(
+        'WISHLIST_URL_TEMPLATE' => $add,
+        'WISHLIST_DELETE_URL_TEMPLATE' => $remove,
+        'WISHLIST_PATH' => $arParams['WISHLIST_PATH']
+    );
+}
+```
+
+component_epilog.php
+после if ($arParams['DISPLAY_COMPARE']){...}
+```
+if ($arParams['DISPLAY_WISHLIST'])
+{
+    $wishlist = false;
+    $wishlistIds = array();
+    $item = $templateData['ITEM'];
+
+    $arBasketItems = array();
+
+    $dbBasketItems = CSaleBasket::GetList(
+        array(
+            "NAME" => "ASC",
+            "ID" => "ASC"
+        ),
+        array(
+            "FUSER_ID" => CSaleBasket::GetBasketUserID(),
+            "LID" => SITE_ID,
+            "ORDER_ID" => "NULL",
+            'DELAY' => 'Y'
+        ),
+        false,
+        false,
+        array("ID", "CALLBACK_FUNC", "MODULE",
+            "PRODUCT_ID", "QUANTITY", "DELAY",
+            "CAN_BUY", "PRICE", "WEIGHT")
+    );
+    while ($arItems = $dbBasketItems->Fetch()) {
+        if (strlen($arItems["CALLBACK_FUNC"]) > 0) {
+            CSaleBasket::UpdatePrice($arItems["ID"],
+                $arItems["CALLBACK_FUNC"],
+                $arItems["MODULE"],
+                $arItems["PRODUCT_ID"],
+                $arItems["QUANTITY"]);
+            $arItems = CSaleBasket::GetByID($arItems["ID"]);
+        }
+
+        if($item['ID'] == $arItems['PRODUCT_ID']){
+            $wishlist = true;
+            break;
+        }
+    }
+
+    if ($templateData['JS_OBJ'])
+    {
+        ?>
+        <script>
+            BX.ready(BX.defer(function(){
+                if (!!window.<?=$templateData['JS_OBJ']?>)
+                {
+                    window.<?=$templateData['JS_OBJ']?>.setWishlited('<?=$wishlist?>');
+                }
+            }));
+        </script>
+        <?
+    }
+}
+```
+
+script.js
+```
+// wishlist
+wishlist: function(event)
+{
+    var checkbox = this.obWishlist.querySelector('[data-entity="wishlist-checkbox"]'),
+        target = BX.getEventTarget(event),
+        checked = true;
+
+    if (checkbox)
+    {
+        checked = target === checkbox ? checkbox.checked : !checkbox.checked;
+    }
+
+    var url = checked ? this.wishlistData.wishlistUrl : this.wishlistData.wishlistDeleteUrl,
+        wishlistLink;
+
+    if (url)
+    {
+        if (target !== checkbox)
+        {
+            BX.PreventDefault(event);
+            this.setWishlited(checked);
+        }
+
+        switch (this.productType)
+        {
+            case 0: // no catalog
+            case 1: // product
+            case 2: // set
+                wishlistLink = url.replace('#ID#', this.product.id.toString());
+                break;
+            case 3: // sku
+                wishlistLink = url.replace('#ID#', this.offers[this.offerNum].ID);
+                break;
+        }
+
+        BX.ajax({
+            method: 'POST',
+            dataType: checked ? 'json' : 'html',
+            url: wishlistLink + (wishlistLink.indexOf('?') !== -1 ? '&' : '?') + 'ajax_action=Y',
+            onsuccess: checked
+                ? BX.proxy(this.wishlistResult, this)
+                : BX.proxy(this.wishlistDeleteResult, this)
+        });
+    }
+
+},
+
+setWishlited: function (state)
+{
+    if (!this.obWishlist)
+        return;
+
+    var checkbox = this.obWishlist.querySelector('[data-entity="wishlist-checkbox"]');
+    if (checkbox)
+    {
+        checkbox.checked = state;
+        if(state) 
+            this.obWishlist.classList.add('active');
+        else 
+            this.obWishlist.classList.remove('active');
+    }
+},
+
+wishlistResult: function(result)
+{
+    BX.onCustomEvent('OnWishlistChange');
+},
+
+wishlistDeleteResult: function(result)
+{
+    BX.onCustomEvent('OnWishlistChange');
+},
+// /wishlist
+```
+
+после useCompare: false, 
+`useWishlist: false,`
+
+после this.compareData = {...};
+```
+this.wishlistData = {
+    wishlistUrl: '',
+    wishlistDeleteUrl: '',
+    wishlistPath: ''
+};
+```
+
+после this.obCompare = null; 
+`this.obWishlist = null;`
+
+после this.initCompareData();
+`this.initWishlistData();`
+
+после if (this.config.useCompare){...}
+```
+if (this.config.useWishlist)
+{
+    this.obWishlist = BX(this.visual.WISHLIST_LINK);
+}
+```
+
+после if (this.obCompare) {...}
+```
+if (this.obWishlist)
+{
+    BX.bind(this.obWishlist, 'click', BX.proxy(this.wishlist, this));
+    // BX.addCustomEvent('onCatalogDeleteWishlist', BX.proxy(this.checkDeletedWishlist, this)); //artem
+}
+```
+
+после this.config.useCompare = this.params.CONFIG.DISPLAY_COMPARE;
+`this.config.useWishlist = this.params.CONFIG.DISPLAY_WISHLIST;`
+
+после initCompareData: function(){...}
+```
+initWishlistData: function()
+{
+    if (this.config.useWishlist) {
+
+        if (this.params.WISHLIST && typeof this.params.WISHLIST === 'object') {
+            if (this.params.WISHLIST.WISHLIST_PATH) {
+                this.wishlistData.wishlistPath = this.params.WISHLIST.WISHLIST_PATH;
+            }
+
+            if (this.params.WISHLIST.WISHLIST_URL_TEMPLATE) {
+                this.wishlistData.wishlistUrl = this.params.WISHLIST.WISHLIST_URL_TEMPLATE;
+            } else {
+                this.useWishlist = false;
+            }
+
+            if (this.params.WISHLIST.WISHLIST_DELETE_URL_TEMPLATE) {
+                this.wishlistData.wishlistDeleteUrl = this.params.WISHLIST.WISHLIST_DELETE_URL_TEMPLATE;
+            } else {
+                this.useWishlist = false;
+            }
+        } else {
+            this.useWishlist = false;
+        }
+    }
+},
 ```
